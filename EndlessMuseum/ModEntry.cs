@@ -28,18 +28,8 @@ public sealed class ModEntry : Mod
     internal static ModConfig config = null!;
 
     private const string MAP_ARCHAEOLOGY_HOUSE = "Maps/ArchaeologyHouse";
-    private const string MAP_SECTION = $"Maps/{ModId}_section";
     private const string TILESHEET_GLASS = $"Maps/{ModId}/tiles_glass";
-
-    private static readonly Rectangle SECTION_TL = new(0, 0, 3, 5);
-    private static readonly Rectangle SECTION_TC = new(3, 0, 2, 5);
-    private static readonly Rectangle SECTION_TR = new(5, 0, 3, 5);
-    private static readonly Rectangle SECTION_ML = new(0, 5, 3, 5);
-    private static readonly Rectangle SECTION_MC = new(3, 5, 2, 5);
-    private static readonly Rectangle SECTION_MR = new(5, 5, 3, 5);
-    private static readonly Rectangle SECTION_BL = new(0, 10, 3, 2);
-    private static readonly Rectangle SECTION_BC = new(3, 10, 2, 2);
-    private static readonly Rectangle SECTION_BR = new(5, 10, 3, 2);
+    private readonly MapNineSlice nineSlice = new();
 
     public override void Entry(IModHelper helper)
     {
@@ -57,7 +47,7 @@ public sealed class ModEntry : Mod
 
     private void OnAssetRequested(object? sender, AssetRequestedEventArgs e)
     {
-        if (e.NameWithoutLocale.IsEquivalentTo(MAP_SECTION))
+        if (e.NameWithoutLocale.IsEquivalentTo(MapNineSlice.MAP_SECTION))
         {
             e.LoadFromModFile<Map>(
                 config.EnableGlassValue ? "assets/section_glass.tmx" : "assets/section.tmx",
@@ -95,7 +85,7 @@ public sealed class ModEntry : Mod
 
     private void OnAssetsInvalidated(object? sender, AssetsInvalidatedEventArgs e)
     {
-        if (e.NamesWithoutLocale.Any(name => name.IsEquivalentTo(MAP_SECTION)))
+        if (e.NamesWithoutLocale.Any(name => name.IsEquivalentTo(MapNineSlice.MAP_SECTION)))
         {
             help.Events.GameLoop.UpdateTicked += OnUpdateTicked_InvalidateMapsArchaeologyHouse;
         }
@@ -147,14 +137,7 @@ public sealed class ModEntry : Mod
 
         // need to do the patches
         int requiredSlots = LibraryMuseum.totalArtifacts - slots.Count;
-        int maxColInRow = (int)
-            MathF.Floor(
-                (
-                    (float)(target.DisplayWidth / Game1.tileSize - config.BaseOrigin.X)
-                    - SECTION_TL.Width
-                    - SECTION_TR.Width
-                ) / SECTION_TC.Width
-            );
+        int maxColInRow = nineSlice.GetMaxColInRow(target.DisplayWidth, config.BaseOrigin.X);
         int maxSlotsInRow = maxColInRow * 4 + 4;
         int requiredRows = (int)MathF.Ceiling((float)requiredSlots / maxSlotsInRow);
         int requiredCols = (int)MathF.Ceiling(MathF.Ceiling((float)requiredSlots / requiredRows - 4) / 4f);
@@ -165,7 +148,7 @@ public sealed class ModEntry : Mod
         );
 
         Point origin = new(config.BaseOrigin.X, config.BaseOrigin.Y + target.DisplayHeight / Game1.tileSize);
-        PatchNineSlice(data, origin, requiredRows, requiredCols);
+        nineSlice.Patch(data, origin, requiredRows, requiredCols);
 
         // add door
         Layer? bld2Layer = target.GetLayer("Buildings2");
@@ -200,48 +183,6 @@ public sealed class ModEntry : Mod
             }
         }
         return slots;
-    }
-
-    private static void PatchNineSlice(IAssetDataForMap data, Point origin, int rows, int cols)
-    {
-        Map source = Game1.game1.xTileContent.Load<Map>(MAP_SECTION);
-        data.ExtendMap(0, origin.Y + SECTION_TL.Height - 1 + rows * (SECTION_ML.Height - 1) + SECTION_BL.Height);
-        // left col
-        PatchSection(data, source, SECTION_TL, origin, 0, 0);
-        for (int j = 0; j < rows; j++)
-        {
-            PatchSection(data, source, SECTION_ML, origin, 0, SECTION_TL.Height - 1 + j * (SECTION_ML.Height - 1));
-        }
-        PatchSection(data, source, SECTION_BL, origin, 0, SECTION_TL.Height - 1 + rows * (SECTION_ML.Height - 1));
-        // mid cols
-        for (int i = 0; i < cols; i++)
-        {
-            int x = SECTION_TL.Width + i * SECTION_MC.Width;
-            PatchSection(data, source, SECTION_TC, origin, x, 0);
-            for (int j = 0; j < rows; j++)
-            {
-                PatchSection(data, source, SECTION_MC, origin, x, SECTION_TC.Height - 1 + j * (SECTION_MC.Height - 1));
-            }
-            PatchSection(data, source, SECTION_BC, origin, x, SECTION_TC.Height - 1 + rows * (SECTION_MC.Height - 1));
-        }
-        // right col
-        int x2 = SECTION_TL.Width + cols * SECTION_MC.Width;
-        PatchSection(data, source, SECTION_TR, origin, x2, 0);
-        for (int j = 0; j < rows; j++)
-        {
-            PatchSection(data, source, SECTION_MR, origin, x2, SECTION_TR.Height - 1 + j * (SECTION_MR.Height - 1));
-        }
-        PatchSection(data, source, SECTION_BR, origin, x2, SECTION_TR.Height - 1 + rows * (SECTION_MR.Height - 1));
-    }
-
-    private static void PatchSection(IAssetDataForMap data, Map source, Rectangle section, Point origin, int x, int y)
-    {
-        data.PatchMap(
-            source,
-            section,
-            new(origin.X + x, origin.Y + y, section.Width, section.Height),
-            PatchMapMode.Overlay
-        );
     }
 
     private static void RepositionDonatedArtifactsIfNeeded()
