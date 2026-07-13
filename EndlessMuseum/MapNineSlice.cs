@@ -11,6 +11,7 @@ namespace EndlessMuseum;
 internal sealed class MapNineSlice
 {
     public const string MAP_SECTION = $"Maps/{ModEntry.ModId}_section";
+    public const string MAP_SECTION_GLASS = $"Maps/{ModEntry.ModId}_section_glass";
     public const string MAP_PROPS = $"Maps/{ModEntry.ModId}_props";
     public const int MIN_ROW_TO_BREAK = 6;
 
@@ -42,10 +43,17 @@ internal sealed class MapNineSlice
         return maxColInRow;
     }
 
-    public void Patch(IAssetDataForMap data, Point origin, int minWidth, int rows, int cols, out int wallLength)
+    public void Patch(
+        IAssetDataForMap data,
+        Point origin,
+        bool isGlass,
+        int minWidth,
+        int rows,
+        int cols,
+        out int wallLength
+    )
     {
-        wallLength = 0;
-        Map source = Game1.game1.xTileContent.Load<Map>(MAP_SECTION);
+        Map source = Game1.game1.xTileContent.Load<Map>(isGlass ? MAP_SECTION_GLASS : MAP_SECTION);
         data.ExtendMap(
             origin.X + minWidth,
             origin.Y + SECTION_TL.Height - 1 + rows * (SECTION_ML.Height - 1) + SECTION_BL.Height

@@ -27,8 +27,7 @@ public sealed class ModEntry : Mod
     internal static IModHelper help = null!;
     internal static ModConfig config = null!;
 
-    private const string MAP_ARCHAEOLOGY_HOUSE = "Maps/ArchaeologyHouse";
-    private const string TILESHEET_GLASS = $"Maps/{ModId}/tiles_glass";
+    public const string MAP_ARCHAEOLOGY_HOUSE = "Maps/ArchaeologyHouse";
     private readonly MapNineSlice nineSlice = new();
 
     public override void Entry(IModHelper helper)
@@ -37,32 +36,38 @@ public sealed class ModEntry : Mod
         mon = Monitor;
         help = helper;
         config = help.ReadConfig<ModConfig>();
-        config.EnableGlassValue =
-            config.EnableGlass ?? help.ModRegistry.IsLoaded("FlashShifter.StardewValleyExpandedCP");
+        config.EnableGlassValue = help.ModRegistry.IsLoaded("FlashShifter.StardewValleyExpandedCP");
 
+        help.Events.GameLoop.GameLaunched += OnGameLaunched;
         help.Events.Content.AssetRequested += OnAssetRequested;
         help.Events.Content.AssetsInvalidated += OnAssetsInvalidated;
         help.Events.GameLoop.SaveLoaded += OnSaveLoaded;
     }
 
+    private void OnGameLaunched(object? sender, GameLaunchedEventArgs e)
+    {
+        config.Register(Helper, ModManifest);
+    }
+
     private void OnAssetRequested(object? sender, AssetRequestedEventArgs e)
     {
-        if (e.NameWithoutLocale.IsEquivalentTo(MapNineSlice.MAP_SECTION))
-        {
-            e.LoadFromModFile<Map>(
-                config.EnableGlassValue ? "assets/section_glass.tmx" : "assets/section.tmx",
-                AssetLoadPriority.Low
-            );
-        }
-        if (e.NameWithoutLocale.IsEquivalentTo(MapNineSlice.MAP_PROPS))
-        {
-            e.LoadFromModFile<Map>("assets/props.tmx", AssetLoadPriority.Low);
-        }
-        else if (e.NameWithoutLocale.IsEquivalentTo(MAP_ARCHAEOLOGY_HOUSE))
+        if (e.NameWithoutLocale.IsEquivalentTo(MAP_ARCHAEOLOGY_HOUSE))
         {
             e.Edit(Edit_ArchaeologyHouse, AssetEditPriority.Late);
         }
-        else if (e.NameWithoutLocale.IsEquivalentTo(TILESHEET_GLASS))
+        else if (e.NameWithoutLocale.IsEquivalentTo(MapNineSlice.MAP_SECTION))
+        {
+            e.LoadFromModFile<Map>("assets/section.tmx", AssetLoadPriority.Low);
+        }
+        else if (e.NameWithoutLocale.IsEquivalentTo(MapNineSlice.MAP_SECTION_GLASS))
+        {
+            e.LoadFromModFile<Map>("assets/section_glass.tmx", AssetLoadPriority.Low);
+        }
+        else if (e.NameWithoutLocale.IsEquivalentTo(MapNineSlice.MAP_PROPS))
+        {
+            e.LoadFromModFile<Map>("assets/props.tmx", AssetLoadPriority.Low);
+        }
+        else if (e.NameWithoutLocale.IsEquivalentTo($"Maps/{ModId}/tiles_glass"))
         {
             e.LoadFromModFile<Texture2D>("assets/tiles_glass.png", AssetLoadPriority.Low);
         }
@@ -153,7 +158,15 @@ public sealed class ModEntry : Mod
         );
 
         Point origin = new(config.BaseOrigin.X, config.BaseOrigin.Y + target.DisplayHeight / Game1.tileSize);
-        nineSlice.Patch(data, origin, config.MinRoomWidth, requiredRows, requiredCols, out int wallLength);
+        nineSlice.Patch(
+            data,
+            origin,
+            config.EnableGlassValue,
+            config.MinRoomWidth,
+            requiredRows,
+            requiredCols,
+            out int wallLength
+        );
 
         nineSlice.PatchDecor(data, origin, config.DoorPosition, wallLength);
 
